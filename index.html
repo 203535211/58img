@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>爱云图床-58img</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/axios@1.6.7/dist/axios.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            dpRed: '#E64340',
+            dpRedDark: '#D03C3A',
+            dpRedLight: '#F86A67',
+            dpGray: '#F5F5F5',
+            dpText: '#333333',
+            dpLightText: '#666666',
+            dpBlue: '#4299E1',
+            dpBlueDark: '#388BDB',
+            dpBlueLight: '#5BA0F2',
+            dpGreen: '#48BB78',
+            dpGreenDark: '#3FA76B',
+            dpGreenLight: '#63CB8D'
+          },
+          fontFamily: {
+            sans: ['PingFang SC', 'Helvetica Neue', 'Arial', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .content-auto {
+        content-visibility: auto;
+      }
+      .upload-hover {
+        @apply hover:border-dpRed hover:bg-red-50 transition-all duration-300;
+      }
+      .btn-dp {
+        @apply bg-dpRed text-white font-medium py-2 px-6 rounded-full hover:bg-dpRedDark transition-all duration-300 shadow-sm;
+      }
+      .card-dp {
+        @apply bg-white rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300;
+      }
+      .file-name-tag {
+        @apply bg-gray-100 text-dpLightText text-xs py-1 px-2 rounded-full inline-block mt-2;
+      }
+      .preview-card {
+        @apply bg-white rounded-xl shadow-sm border border-gray-100 p-6 transition-all duration-300 hover:shadow-md;
+      }
+      .format-input {
+        @apply w-full text-sm p-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-dpBlue/30 mt-2;
+      }
+      /* 标签样式（恢复Markdown全称，保持横向一排） */
+      .tab-btn {
+        @apply px-2.5 py-1.5 text-xs font-medium rounded-t-lg transition-all duration-300 flex items-center gap-1.5;
+      }
+      .tab-btn.active {
+        @apply bg-white text-dpText border border-gray-200 border-b-0 shadow-sm;
+      }
+      .tab-btn.inactive {
+        @apply bg-gray-100 text-dpLightText hover:bg-gray-200;
+      }
+      .tab-content {
+        @apply border border-gray-200 rounded-b-lg p-4 bg-white;
+      }
+      /* 美化复制按钮（渐变+动效） */
+      .btn-copy {
+        @apply text-xs py-1.5 px-4 rounded-lg transition-all duration-300 flex items-center gap-1 font-medium shadow-sm transform hover:scale-105 active:scale-95;
+      }
+      .btn-copy.red {
+        @apply bg-gradient-to-r from-dpRed to-dpRedLight text-white hover:from-dpRedDark hover:to-dpRed;
+      }
+      .btn-copy.blue {
+        @apply bg-gradient-to-r from-dpBlue to-dpBlueLight text-white hover:from-dpBlueDark hover:to-dpBlue;
+      }
+      .btn-copy.green {
+        @apply bg-gradient-to-r from-dpGreen to-dpGreenLight text-white hover:from-dpGreenDark hover:to-dpGreen;
+      }
+    }
+  </style>
+</head>
+<body class="bg-dpGray text-dpText min-h-screen flex flex-col">
+  <header class="bg-white shadow-sm sticky top-0 z-50">
+    <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+      <div class="flex items-center gap-2">
+        <i class="fa fa-picture-o text-dpRed text-2xl"></i>
+        <h1 class="text-xl font-bold">爱云图床-58img</h1>
+      </div>
+      <p class="text-sm text-dpLightText hidden md:inline-block">支持 URL/HTML/Markdown 格式复制</p>
+    </div>
+  </header>
+
+  <main class="flex-1 container mx-auto px-4 py-8">
+    <div class="max-w-3xl mx-auto">
+      <!-- 上传区域 -->
+      <div class="card-dp p-6 mb-8">
+        <h2 class="text-lg font-medium mb-4 flex items-center gap-2">
+          <i class="fa fa-upload text-dpRed"></i>图片上传
+        </h2>
+        <div 
+          class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center upload-hover cursor-pointer"
+          id="uploadArea"
+        >
+          <i class="fa fa-cloud-upload text-4xl text-dpRed mb-4"></i>
+          <h3 class="text-lg font-medium mb-2">点击或拖拽图片到此处上传</h3>
+          <p class="text-dpLightText text-sm mb-4">支持 JPG、PNG、GIF 格式，建议单张不超过 5MB</p>
+          <button class="btn-dp" id="selectBtn">选择图片</button>
+          <input type="file" id="fileInput" class="hidden" accept="image/jpeg,image/png,image/gif">
+          <div id="selectedFileName" class="hidden">
+            <span class="file-name-tag" id="fileNameDisplay"></span>
+          </div>
+        </div>
+
+        <div id="progressArea" class="mt-4 hidden">
+          <div class="w-full bg-gray-200 rounded-full h-2.5">
+            <div class="bg-dpRed h-2.5 rounded-full transition-all duration-300" id="progressBar"></div>
+          </div>
+          <p class="text-sm text-dpLightText mt-2 text-center" id="progressText">上传中... 0%</p>
+        </div>
+      </div>
+
+      <!-- 预览区域（恢复Markdown全称+美化复制按钮） -->
+      <div id="previewArea" class="preview-card mb-8 hidden">
+        <h2 class="text-lg font-medium mb-6 flex items-center gap-2">
+          <i class="fa fa-eye text-dpRed"></i>图片预览 &
+        </h2>
+        <!-- 预览图容器（保持小尺寸） -->
+        <div class="flex justify-center mb-6 bg-gray-50 p-4 rounded-xl border border-gray-100">
+          <img id="previewImg" alt="预览图" class="max-w-full max-h-28 object-contain rounded-lg shadow-sm">
+        </div>
+
+        <!-- 标签恢复Markdown全称（微调内边距确保横向一排） -->
+        <div class="flex flex-wrap border-b border-gray-200">
+          <button class="tab-btn active" data-type="url" id="urlTab">
+            <i class="fa fa-link text-dpRed"></i> URL
+          </button>
+          <button class="tab-btn inactive" data-type="html" id="htmlTab">
+            <i class="fa fa-html5 text-dpBlue"></i> HTML
+          </button>
+          <button class="tab-btn inactive" data-type="markdown" id="mdTab">
+            <i class="fa fa-markdown text-dpGreen"></i> Markdown
+          </button>
+        </div>
+
+        <!-- 格式内容区域（美化复制按钮） -->
+        <div class="tab-content">
+          <div class="flex justify-between items-center">
+            <label class="font-medium text-dpText" id="currentFormatLabel">URL 链接</label>
+            <button class="btn-copy red" id="copyCurrentBtn">
+              <i class="fa fa-copy"></i> 复制
+            </button>
+          </div>
+          <input 
+            type="text" 
+            id="currentFormatInput"
+            class="format-input"
+            readonly
+            placeholder="加载中..."
+          >
+        </div>
+
+        <!-- 额外功能按钮 -->
+        <div class="mt-6 flex justify-end gap-3">
+          <button class="btn-dp text-sm py-2 px-4 bg-gray-100 text-dpText hover:bg-gray-200 flex items-center gap-1" id="openBtn">
+            <i class="fa fa-external-link"></i> 打开原图
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bg-white py-4 border-t border-gray-100">
+    <div class="container mx-auto px-4 text-center text-sm text-dpLightText">
+      <p>© 2025 爱云科技图床 | 仅供个人学习使用</p>
+    </div>
+  </footer>
+
+  <div id="toast" class="fixed top-20 right-4 py-2 px-4 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 z-50 flex items-center gap-2">
+    <i id="toastIcon" class="fa fa-check-circle text-green-500"></i>
+    <span id="toastText">操作成功</span>
+  </div>
+
+  <script>
+    // 获取DOM元素
+    const uploadArea = document.getElementById('uploadArea');
+    const selectBtn = document.getElementById('selectBtn');
+    const fileInput = document.getElementById('fileInput');
+    const progressArea = document.getElementById('progressArea');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const previewArea = document.getElementById('previewArea');
+    const previewImg = document.getElementById('previewImg');
+    const openBtn = document.getElementById('openBtn');
+    const toast = document.getElementById('toast');
+    const toastIcon = document.getElementById('toastIcon');
+    const toastText = document.getElementById('toastText');
+    const selectedFileName = document.getElementById('selectedFileName');
+    const fileNameDisplay = document.getElementById('fileNameDisplay');
+
+    // 切换标签相关元素
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const urlTab = document.getElementById('urlTab');
+    const htmlTab = document.getElementById('htmlTab');
+    const mdTab = document.getElementById('mdTab');
+    const currentFormatLabel = document.getElementById('currentFormatLabel');
+    const currentFormatInput = document.getElementById('currentFormatInput');
+    const copyCurrentBtn = document.getElementById('copyCurrentBtn');
+
+    // 配置API信息
+    const API_CONFIG = {
+      baseUrl: 'https://demo-test-api-plz-no-report-abuse.j71km4jc56.workers.dev',
+      password: '123456',
+      channel: '58img',
+      fileField: 'image'
+    };
+
+    // 状态变量
+    let previewUrlVal = '';
+    let currentFormat = 'url'; // 当前选中的格式（默认URL）
+    let formatData = { url: '', html: '', markdown: '' }; // 三种格式的内容
+
+    // 生成三种格式的内容（alt已改为image）
+    function generateFormats(url) {
+      return {
+        url: url,
+        html: `<img src="${url}" alt="image" style="max-width:100%;">`,
+        markdown: `![image](${url})`
+      };
+    }
+
+    // 切换标签逻辑（同步更新美化后的复制按钮样式）
+    function switchTab(type) {
+      currentFormat = type;
+      // 更新标签样式
+      tabBtns.forEach(btn => {
+        if (btn.dataset.type === type) {
+          btn.classList.remove('inactive');
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+          btn.classList.add('inactive');
+        }
+      });
+      // 更新内容区域和复制按钮样式
+      switch (type) {
+        case 'url':
+          currentFormatLabel.textContent = 'URL 链接';
+          currentFormatInput.value = formatData.url;
+          copyCurrentBtn.className = 'btn-copy red';
+          break;
+        case 'html':
+          currentFormatLabel.textContent = 'HTML 代码';
+          currentFormatInput.value = formatData.html;
+          copyCurrentBtn.className = 'btn-copy blue';
+          break;
+        case 'markdown':
+          currentFormatLabel.textContent = 'Markdown 代码';
+          currentFormatInput.value = formatData.markdown;
+          copyCurrentBtn.className = 'btn-copy green';
+          break;
+      }
+    }
+
+    // 绑定标签点击事件
+    urlTab.addEventListener('click', () => switchTab('url'));
+    htmlTab.addEventListener('click', () => switchTab('html'));
+    mdTab.addEventListener('click', () => switchTab('markdown'));
+
+    // 复制当前格式内容（保持原有功能）
+    copyCurrentBtn.addEventListener('click', () => {
+      const text = currentFormatInput.value;
+      if (!text || text.trim() === '' || text === '加载中...' || text === '上传失败' || text === '暂无有效链接') {
+        showToast('无有效内容可复制', 'error');
+        return;
+      }
+      navigator.clipboard.writeText(text).then(() => {
+        showToast(`${currentFormatLabel.textContent}已复制`);
+        // 复制成功添加动效反馈
+        copyCurrentBtn.innerHTML = '<i class="fa fa-check"></i> 已复制';
+        setTimeout(() => {
+          copyCurrentBtn.innerHTML = '<i class="fa fa-copy"></i> 复制';
+        }, 1500);
+      }).catch(() => {
+        showToast('复制失败，请手动复制', 'error');
+      });
+    });
+
+    // 点击上传区域和按钮触发文件选择
+    uploadArea.addEventListener('click', (e) => {
+      if (e.target !== selectBtn && !selectBtn.contains(e.target)) {
+        fileInput.click();
+      }
+    });
+    selectBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fileInput.click();
+    });
+
+    // 拖拽上传处理
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      uploadArea.classList.add('border-dpRed');
+    });
+    uploadArea.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      uploadArea.classList.remove('border-dpRed');
+    });
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      uploadArea.classList.remove('border-dpRed');
+      if (e.dataTransfer.files.length > 0) {
+        const file = e.dataTransfer.files[0];
+        if (validateFile(file)) {
+          showFileName(file.name);
+          handleFile(file);
+        }
+      }
+    });
+
+    // 文件选择后处理
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        const file = e.target.files[0];
+        if (validateFile(file)) {
+          showFileName(file.name);
+          handleFile(file);
+        } else {
+          fileInput.value = '';
+        }
+      }
+    });
+
+    // 验证文件格式和大小
+    function validateFile(file) {
+      const validTypes = ['image/jpeg', 'image/png', 'image/gif'];
+      if (!validTypes.includes(file.type)) {
+        showToast('请上传 JPG、PNG 或 GIF 格式的图片', 'error');
+        return false;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        showToast('单张图片不能超过5MB', 'error');
+        return false;
+      }
+      return true;
+    }
+
+    // 显示选中的文件名
+    function showFileName(name) {
+      fileNameDisplay.textContent = `已选择：${name}`;
+      selectedFileName.classList.remove('hidden');
+    }
+
+    // 隐藏文件名显示
+    function hideFileName() {
+      selectedFileName.classList.add('hidden');
+      fileNameDisplay.textContent = '';
+    }
+
+    // 处理文件上传
+    function handleFile(file) {
+      progressArea.classList.remove('hidden');
+      progressBar.style.width = '0%';
+      progressText.textContent = '上传中... 0%';
+      currentFormatInput.value = '上传中...';
+
+      const fullApiUrl = `${API_CONFIG.baseUrl}/upload/${API_CONFIG.channel}`;
+      const formData = new FormData();
+      formData.append(API_CONFIG.fileField, file);
+
+      axios.post(fullApiUrl, formData, {
+        headers: {
+          'Authorization': `Bearer ${API_CONFIG.password}`,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+        },
+        onUploadProgress: (e) => {
+          if (e.total > 0) {
+            const progress = Math.round((e.loaded / e.total) * 100);
+            progressBar.style.width = `${progress}%`;
+            progressText.textContent = `上传中... ${progress}%`;
+          }
+        },
+        responseType: 'text'
+      }).then(response => {
+        previewUrlVal = response.data.trim();
+        if (previewUrlVal) {
+          // 生成三种格式并存储
+          formatData = generateFormats(previewUrlVal);
+          // 更新预览图和默认格式（URL）
+          previewImg.src = formatData.url;
+          currentFormatInput.value = formatData.url;
+          // 显示预览区域并滚动
+          previewArea.classList.remove('hidden');
+          previewArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          showToast('上传成功');
+        } else {
+          currentFormatInput.value = '暂无有效链接';
+          showToast('上传成功，但未获取到图片链接', 'warning');
+        }
+      }).catch(error => {
+        currentFormatInput.value = '上传失败';
+        previewArea.classList.remove('hidden');
+        previewArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        let errMsg = '上传失败';
+        if (error.response) {
+          errMsg = error.response.status === 401 || error.response.status === 403 
+            ? '上传失败：密码错误或权限不足' 
+            : `上传失败（状态码：${error.response.status}）`;
+        } else if (error.request) {
+          errMsg = '上传失败：接口不可用或网络异常';
+        }
+        showToast(errMsg, 'error');
+      }).finally(() => {
+        progressArea.classList.add('hidden');
+        fileInput.value = '';
+        setTimeout(hideFileName, 3000);
+      });
+    }
+
+    // 打开原图
+    openBtn.addEventListener('click', () => {
+      if (previewUrlVal) {
+        window.open(previewUrlVal, '_blank');
+      } else {
+        showToast('暂无图片可打开', 'error');
+      }
+    });
+
+    // 显示提示
+    function showToast(message, type = 'success') {
+      toastText.textContent = message;
+      switch(type) {
+        case 'success':
+          toast.className = 'fixed top-20 right-4 py-2 px-4 rounded-lg shadow-lg transform translate-x-0 transition-transform duration-300 z-50 flex items-center gap-2 bg-white text-green-500';
+          toastIcon.className = 'fa fa-check-circle text-green-500';
+          break;
+        case 'error':
+          toast.className = 'fixed top-20 right-4 py-2 px-4 rounded-lg shadow-lg transform translate-x-0 transition-transform duration-300 z-50 flex items-center gap-2 bg-white text-red-500';
+          toastIcon.className = 'fa fa-exclamation-circle text-red-500';
+          break;
+        case 'warning':
+          toast.className = 'fixed top-20 right-4 py-2 px-4 rounded-lg shadow-lg transform translate-x-0 transition-transform duration-300 z-50 flex items-center gap-2 bg-white text-yellow-500';
+          toastIcon.className = 'fa fa-exclamation-triangle text-yellow-500';
+          break;
+      }
+      setTimeout(() => {
+        toast.className = 'fixed top-20 right-4 py-2 px-4 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 z-50 flex items-center gap-2';
+      }, 3000);
+    }
+  </script>
+</body>
+</html>
